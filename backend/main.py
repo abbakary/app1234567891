@@ -10,7 +10,7 @@ import models
 from database import engine
 from websocket_manager import manager
 
-from routers import auth, orders, tables, menu, payments, stats, notifications, seed, restaurants, platform, drivers, uploads, users, analytics
+from routers import auth, orders, tables, menu, payments, stats, notifications, seed, restaurants, platform, drivers, uploads, users, analytics, customers
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -57,6 +57,7 @@ app.include_router(menu.router)
 app.include_router(tables.router)
 app.include_router(orders.router)
 app.include_router(drivers.router)
+app.include_router(customers.router)
 app.include_router(payments.router)
 app.include_router(stats.router)
 app.include_router(notifications.router)

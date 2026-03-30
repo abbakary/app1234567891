@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, MapPin, Phone, MessageSquare, Navigation2, Bike, Clock } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, MessageSquare, Navigation2, Bike, Clock, Navigation, Loader2, MapIcon } from 'lucide-react';
 import { TrackingStepper } from '@/components/portal/TrackingStepper';
+import { TrackingMap } from '@/components/portal/tracking/TrackingMap';
+import { useGeolocation } from '@/hooks/use-geolocation';
+import { calculateDistance, formatDistance, estimateTimeToDestination, formatTimeRemaining } from '@/lib/location-utils';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
@@ -29,6 +33,11 @@ export default function OrderTrackingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [estimatedTime, setEstimatedTime] = useState('15-25');
   const [deliveryProgress, setDeliveryProgress] = useState(0);
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Geolocation
+  const { location: userLocation, loading: locationLoading, requestLocation, watchLocation, error: geoError } = useGeolocation();
+  const [isWatchingLocation, setIsWatchingLocation] = useState(false);
 
   useEffect(() => {
     fetchOrder();
@@ -36,11 +45,18 @@ export default function OrderTrackingPage() {
     // Connect to WebSocket for real-time updates
     const ws = new WebSocket(`${WS_URL}/ws`);
 
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+    };
+
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        // Handle driver location updates
+        console.log('Received message:', message);
+
+        // Handle driver location updates (Real-time)
         if (message.type === 'DRIVER_LOCATION_UPDATED' && order?.driver?.id === message.driver_id) {
+          console.log('Driver location updated:', message);
           setOrder(prev => ({
             ...prev,
             driver: {
@@ -49,13 +65,27 @@ export default function OrderTrackingPage() {
               longitude: message.longitude
             }
           }));
+          // Update driver location for map
+          if (message.latitude && message.longitude) {
+            setDriverLocation({
+              lat: message.latitude,
+              lng: message.longitude
+            });
+          }
+        }
+        // Handle customer location updates (for analytics/history)
+        else if (message.type === 'CUSTOMER_LOCATION_UPDATED' && message.order_id === orderId) {
+          console.log('Customer location received:', message);
+          // Could be used to update delivery progress or show customer on map
         }
         // Handle driver assignment
-        if (message.type === 'DRIVER_ASSIGNED' && message.order_id === orderId) {
+        else if (message.type === 'DRIVER_ASSIGNED' && message.order_id === orderId) {
+          console.log('Driver assigned, fetching order');
           fetchOrder();
         }
         // Handle order status changes
-        if (message.type === 'ORDER_STATUS_CHANGED' && message.order_id === orderId) {
+        else if ((message.type === 'ORDER_STATUS_CHANGED' || message.type === 'order_update') && message.order_id === orderId) {
+          console.log('Order status changed, fetching order');
           fetchOrder();
         }
       } catch (err) {
@@ -63,7 +93,19 @@ export default function OrderTrackingPage() {
       }
     };
 
-    return () => ws.close();
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, [orderId]);
 
   // Simulate delivery progress (if order is in delivery)
@@ -79,6 +121,49 @@ export default function OrderTrackingPage() {
 
     return () => clearInterval(interval);
   }, [order]);
+
+  // Auto-send customer location to backend
+  useEffect(() => {
+    if (!userLocation || !order) return;
+
+    const sendLocationToBackend = async () => {
+      try {
+        const restaurantId = localStorage.getItem('customer_restaurant_id');
+        await fetch(`${BASE_URL}/api/customers/location`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Restaurant-ID': restaurantId || '',
+          },
+          body: JSON.stringify({
+            order_id: orderId,
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            accuracy: userLocation.accuracy,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to send location:', err);
+      }
+    };
+
+    sendLocationToBackend();
+  }, [userLocation, order, orderId]);
+
+  // Start watching location when delivery starts
+  useEffect(() => {
+    if (!order || !isWatchingLocation) return;
+    if (order.order_type !== 'delivery' && order.orderType !== 'delivery') {
+      setIsWatchingLocation(false);
+      return;
+    }
+
+    const unwatch = watchLocation((coords) => {
+      console.log('Location update:', coords);
+    });
+
+    return () => unwatch();
+  }, [isWatchingLocation, order, watchLocation]);
 
   const fetchOrder = async () => {
     try {
@@ -155,117 +240,173 @@ export default function OrderTrackingPage() {
 
       {/* Interactive Map View */}
       {order.order_type === 'delivery' || order.orderType === 'delivery' ? (
-        <Card className="premium-card overflow-hidden h-80 relative bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border-none shadow-lg">
-          {/* Map Grid Background */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="w-full h-full relative">
-              <svg className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-                <defs>
-                  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#6B7280" strokeWidth="0.5"/>
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-              </svg>
-            </div>
-          </div>
+        <div className="space-y-4">
+          {/* Real Map with OpenStreetMap */}
+          <TrackingMap
+            restaurantLocation={
+              order && {
+                lat: -6.8,
+                lng: 39.3,
+                name: 'Restaurant',
+                type: 'restaurant' as const,
+                extra: {
+                  address: order.delivery_address || 'Restaurant Location',
+                },
+              }
+            }
+            driverLocation={
+              order?.driver && {
+                lat: order.driver.latitude || -6.8,
+                lng: order.driver.longitude || 39.3,
+                name: order.driver.name || 'Driver',
+                type: 'driver' as const,
+                extra: {
+                  vehicleType: order.driver.vehicle_type,
+                  phone: order.driver.phone,
+                },
+              }
+            }
+            customerLocation={
+              userLocation && {
+                lat: userLocation.latitude,
+                lng: userLocation.longitude,
+                name: 'Your Location',
+                type: 'customer' as const,
+              }
+            }
+            height="400px"
+          />
 
-          {/* Delivery Route Animation */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
-              {/* Delivery Path */}
-              <motion.path
-                d="M 20% 30% Q 50% 50%, 80% 70%"
-                stroke="#FF6B00"
-                strokeWidth="3"
-                fill="none"
-                strokeDasharray="100"
-                initial={{ strokeDashoffset: 100 }}
-                animate={{ strokeDashoffset: 0 }}
-                transition={{ duration: 2, repeat: Infinity }}
-                strokeLinecap="round"
-              />
-            </svg>
-
-            {/* Restaurant Location */}
-            <motion.div
-              className="absolute z-10"
-              style={{ left: '20%', top: '30%' }}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="relative">
-                <div className="w-12 h-12 bg-white dark:bg-gray-900 rounded-2xl shadow-lg flex items-center justify-center border-2 border-green-500">
-                  <MapPin className="w-6 h-6 text-green-500" />
-                </div>
-                <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-[10px] font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">Restaurant</span>
-              </div>
-            </motion.div>
-
-            {/* Delivery Person (Moving) */}
-            <motion.div
-              className="absolute z-20"
-              animate={{
-                left: ['20%', '80%'],
-                top: ['30%', '70%']
+          {/* Location Controls */}
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              onClick={() => {
+                requestLocation();
+                toast.success('Getting your location...');
               }}
-              transition={{ duration: 8, repeat: Infinity, repeatType: 'reverse' }}
+              disabled={locationLoading}
+              className="bg-white dark:bg-gray-900 text-primary border border-primary/20 hover:bg-primary/5 rounded-xl h-12 font-bold flex items-center justify-center gap-2"
             >
-              <div className="relative">
-                <motion.div
-                  className="w-14 h-14 bg-primary rounded-2xl shadow-xl flex items-center justify-center border-2 border-white dark:border-gray-900"
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 3, repeat: Infinity, repeatType: 'reverse' }}
-                >
-                  <Bike className="w-7 h-7 text-white" />
-                </motion.div>
-                <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-[10px] font-bold text-primary whitespace-nowrap">Delivery</span>
-              </div>
-            </motion.div>
+              {locationLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Locating...
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4" />
+                  Get My Location
+                </>
+              )}
+            </Button>
 
-            {/* Delivery Destination */}
-            <motion.div
-              className="absolute z-10"
-              style={{ left: '80%', top: '70%' }}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.4 }}
+            <Button
+              onClick={() => {
+                setIsWatchingLocation(!isWatchingLocation);
+                if (!isWatchingLocation) {
+                  toast.success('Live tracking started');
+                } else {
+                  toast.info('Live tracking stopped');
+                }
+              }}
+              className={`rounded-xl h-12 font-bold flex items-center justify-center gap-2 ${
+                isWatchingLocation
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-primary hover:bg-primary/90 text-white'
+              }`}
             >
-              <div className="relative">
-                <div className="w-12 h-12 bg-white dark:bg-gray-900 rounded-2xl shadow-lg flex items-center justify-center border-2 border-blue-500">
-                  <MapPin className="w-6 h-6 text-blue-500" />
-                </div>
-                <span className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-[10px] font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap">Your Location</span>
-              </div>
-            </motion.div>
+              {isWatchingLocation ? (
+                <>
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  Stop Tracking
+                </>
+              ) : (
+                <>
+                  <Loader2 className="w-4 h-4" />
+                  Start Tracking
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* Floating ETA Card */}
-          <div className="absolute bottom-4 left-4 right-4 bg-white/95 dark:bg-black/80 backdrop-blur-xl rounded-[24px] border border-white/30 dark:border-gray-800 shadow-2xl px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.1em]">Est. Arrival</span>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
-                  <span className="text-[18px] font-black text-gray-900 dark:text-white tracking-tight">{estimatedTime}</span>
-                  <span className="text-[11px] font-bold text-gray-400">mins</span>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.1em]">Progress</span>
-                <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-primary to-orange-500"
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${Math.min(deliveryProgress, 100)}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
+          {/* Accuracy & Error Info */}
+          {geoError && (
+            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-xl p-4">
+              <p className="text-sm text-red-600 dark:text-red-400">⚠️ {geoError}</p>
+            </div>
+          )}
+
+          {userLocation && (
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/50 rounded-xl p-4">
+              <div className="flex items-center justify-between text-sm">
+                <div>
+                  <p className="text-blue-600 dark:text-blue-400 font-semibold">📍 Your Current Location</p>
+                  <p className="text-xs text-blue-500 dark:text-blue-300 mt-1">
+                    Lat: {userLocation.latitude.toFixed(6)} | Lng: {userLocation.longitude.toFixed(6)}
+                  </p>
+                  <p className="text-xs text-blue-500 dark:text-blue-300">
+                    Accuracy: ±{userLocation.accuracy?.toFixed(0)}m
+                  </p>
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Distance & ETA Card */}
+          {order?.driver && userLocation && order.driver.latitude && order.driver.longitude && (
+            <div className="bg-gradient-to-r from-primary/10 to-orange-500/10 dark:from-primary/5 dark:to-orange-500/5 rounded-[24px] border border-primary/20 dark:border-primary/10 shadow-sm px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.1em]">Distance</span>
+                  <div className="flex items-center gap-2">
+                    <MapIcon className="w-4 h-4 text-primary" />
+                    <span className="text-[18px] font-black text-gray-900 dark:text-white tracking-tight">
+                      {formatDistance(calculateDistance(
+                        userLocation.latitude,
+                        userLocation.longitude,
+                        order.driver.latitude,
+                        order.driver.longitude
+                      ))}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.1em]">Est. Arrival</span>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="text-[18px] font-black text-gray-900 dark:text-white tracking-tight">
+                      {formatTimeRemaining(estimateTimeToDestination(
+                        calculateDistance(
+                          userLocation.latitude,
+                          userLocation.longitude,
+                          order.driver.latitude,
+                          order.driver.longitude
+                        ),
+                        30 // Average delivery speed: 30 km/h
+                      ))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Progress Card */}
+          <div className="bg-white dark:bg-gray-900 rounded-[24px] border border-gray-100 dark:border-gray-800 shadow-sm px-6 py-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.1em]">Delivery Progress</span>
+              <div className="flex-1 mx-4 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-primary to-orange-500"
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${Math.min(deliveryProgress, 100)}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+              </div>
+              <span className="text-[11px] font-black text-primary">{Math.round(Math.min(deliveryProgress, 100))}%</span>
+            </div>
           </div>
-        </Card>
+        </div>
       ) : null}
 
       {/* Status Stepper */}

@@ -334,3 +334,19 @@ class DriverLocationUpdate(BaseModel):
 
 class DriverAssignRequest(BaseModel):
     driver_id: str
+
+class CustomerLocationUpdate(BaseModel):
+    order_id: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+
+class LocationData(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    timestamp: datetime = None
+
+    @validator("timestamp", pre=True, always=True)
+    def set_timestamp(cls, v):
+        return v or datetime.utcnow()
