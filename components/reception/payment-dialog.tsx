@@ -44,20 +44,25 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
     }
 
     try {
+      // Create payment record which will update order status to paid
       await createPayment.mutateAsync({
         orderId: order.id,
         amount: order.total,
         method,
       });
       setIsPaid(true);
-      toast.success('Payment completed');
+      toast.success('Payment completed & Order status updated to paid', {
+        description: `Order #${order.id.slice(-6)} is now marked as paid`
+      });
     } catch (error) {
       toast.error('Payment failed');
+      console.error('Payment error:', error);
     }
   };
 
   const handleQRPaymentConfirm = async () => {
     try {
+      // Create payment record for QR payment which will update order status
       await createPayment.mutateAsync({
         orderId: order.id,
         amount: order.total,
@@ -65,9 +70,12 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
       });
       setIsPaid(true);
       setShowQR(false);
-      toast.success('QR Payment completed');
+      toast.success('QR Payment completed & Order status updated to paid', {
+        description: `Order #${order.id.slice(-6)} is now marked as paid`
+      });
     } catch (error) {
       toast.error('Payment failed');
+      console.error('Payment error:', error);
     }
   };
 

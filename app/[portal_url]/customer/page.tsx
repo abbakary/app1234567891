@@ -235,7 +235,8 @@ export default function PortalCustomerMenuPage() {
       const tax = calculateTax();
       const total = subtotal + tax;
 
-      const res = await fetch(`${BASE_URL}/api/orders`, {
+      // Step 1: Create order with paid status (for development/mock payment flow)
+      const orderRes = await fetch(`${BASE_URL}/api/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -261,16 +262,37 @@ export default function PortalCustomerMenuPage() {
         }),
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        const errorMsg = Array.isArray(error.detail) 
-          ? error.detail.map((e: any) => `${e.loc.join('.')}: ${e.msg}`).join(', ') 
+      if (!orderRes.ok) {
+        const error = await orderRes.json();
+        const errorMsg = Array.isArray(error.detail)
+          ? error.detail.map((e: any) => `${e.loc.join('.')}: ${e.msg}`).join(', ')
           : (error.detail || 'Failed to place order');
         toast.error(errorMsg);
         return;
       }
 
-      const orderData = await res.json();
+      const orderData = await orderRes.json();
+
+      // Step 2: Create payment record to update order status to paid
+      try {
+        await fetch(`${BASE_URL}/api/payments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Restaurant-ID': restaurantId || '',
+          },
+          body: JSON.stringify({
+            order_id: orderData.id,
+            amount: total,
+            method: 'card', // Mock payment method
+            status: 'completed',
+          }),
+        });
+      } catch (paymentErr) {
+        console.error('Payment record creation failed, but order was created:', paymentErr);
+        // Order was created successfully, payment logging failed but we continue
+      }
+
       setOrderResponse(orderData);
       setCheckoutStep('success');
       setCart([]);
@@ -443,19 +465,26 @@ export default function PortalCustomerMenuPage() {
                     <div className="space-y-4">
                       {orderType === 'dine-in' && (
                         <div className="space-y-2">
-                          <Label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] px-1">Table Details</Label>
-                          <Select value={tableId} onValueChange={setTableId}>
-                            <SelectTrigger className="h-14 rounded-2xl bg-white dark:bg-gray-900 border-none shadow-sm font-semibold">
+                          <Label htmlFor="dine-in-table" className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] px-1">Table Details</Label>
+                          <Select value={tableId || ''} onValueChange={setTableId}>
+                            <SelectTrigger id="dine-in-table" className={`h-14 rounded-2xl bg-white dark:bg-gray-900 border-none shadow-sm font-semibold ${!tableId ? 'text-gray-500' : ''}`}>
                               <SelectValue placeholder="Which table are you at?" />
                             </SelectTrigger>
                             <SelectContent className="rounded-2xl border-none shadow-xl">
-                              {tables.map(table => (
-                                <SelectItem key={table.id} value={table.id} className="rounded-xl my-1 font-medium">
-                                  {table.name}
-                                </SelectItem>
-                              ))}
+                              {tables && tables.length > 0 ? (
+                                tables.map(table => (
+                                  <SelectItem key={table.id} value={String(table.id)} className="rounded-xl my-1 font-medium">
+                                    {table.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="px-2 py-1.5 text-sm text-gray-500">No tables available</div>
+                              )}
                             </SelectContent>
                           </Select>
+                          {orderType === 'dine-in' && !tableId && (
+                            <p className="text-xs text-red-500 font-medium">Required: Please select a table</p>
+                          )}
                         </div>
                       )}
 

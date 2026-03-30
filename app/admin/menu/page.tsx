@@ -393,10 +393,10 @@ export default function MenuManagement() {
               <div className="space-y-2">
                 <Label htmlFor="category">Category {editingItem ? '' : '(Optional - AI will classify)'}</Label>
                 <Select
-                  value={formData.category}
-                  onValueChange={(v) => setFormData({ ...formData, category: v as MenuCategory })}
+                  value={formData.category || 'auto'}
+                  onValueChange={(v) => setFormData({ ...formData, category: v === 'auto' ? 'auto' : (v as MenuCategory) })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="category" className={formData.category ? '' : 'text-gray-500'}>
                     <SelectValue placeholder="AI will decide" />
                   </SelectTrigger>
                   <SelectContent>
