@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 import uuid
 
@@ -9,6 +9,161 @@ import models, schemas
 from auth_utils import verify_restaurant
 
 router = APIRouter(prefix="/api/messaging", tags=["Messaging"])
+
+
+# ==================== MESSAGE TEMPLATES ====================
+
+@router.post("/templates", response_model=schemas.MessageTemplate)
+async def create_message_template(
+    request: schemas.MessageTemplateCreate,
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+):
+    """
+    Create a new message template for a restaurant
+    """
+    try:
+        # If this is set as default, unset other defaults
+        if request.is_default:
+            db.query(models.RestaurantMessageTemplate).filter(
+                models.RestaurantMessageTemplate.restaurant_id == restaurant_id,
+                models.RestaurantMessageTemplate.is_default == True
+            ).update({models.RestaurantMessageTemplate.is_default: False})
+
+        template = models.RestaurantMessageTemplate(
+            id=str(uuid.uuid4()),
+            restaurant_id=restaurant_id,
+            template_name=request.template_name,
+            message_type=request.message_type,
+            content=request.content,
+            is_default=request.is_default
+        )
+        db.add(template)
+        db.commit()
+        return template
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating message template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating template: {str(e)}")
+
+
+@router.get("/templates", response_model=List[schemas.MessageTemplate])
+async def get_message_templates(
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+):
+    """
+    Get all message templates for a restaurant
+    """
+    try:
+        templates = db.query(models.RestaurantMessageTemplate).filter(
+            models.RestaurantMessageTemplate.restaurant_id == restaurant_id
+        ).order_by(
+            models.RestaurantMessageTemplate.created_at.desc()
+        ).all()
+        return templates
+    except Exception as e:
+        print(f"Error fetching message templates: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching templates: {str(e)}")
+
+
+@router.get("/templates/{template_id}", response_model=schemas.MessageTemplate)
+async def get_message_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+):
+    """
+    Get a specific message template
+    """
+    try:
+        template = db.query(models.RestaurantMessageTemplate).filter(
+            models.RestaurantMessageTemplate.id == template_id,
+            models.RestaurantMessageTemplate.restaurant_id == restaurant_id
+        ).first()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        return template
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching message template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching template: {str(e)}")
+
+
+@router.patch("/templates/{template_id}", response_model=schemas.MessageTemplate)
+async def update_message_template(
+    template_id: str,
+    request: schemas.MessageTemplateCreate,
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+):
+    """
+    Update a message template
+    """
+    try:
+        template = db.query(models.RestaurantMessageTemplate).filter(
+            models.RestaurantMessageTemplate.id == template_id,
+            models.RestaurantMessageTemplate.restaurant_id == restaurant_id
+        ).first()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        # If setting as default, unset others
+        if request.is_default:
+            db.query(models.RestaurantMessageTemplate).filter(
+                models.RestaurantMessageTemplate.restaurant_id == restaurant_id,
+                models.RestaurantMessageTemplate.id != template_id,
+                models.RestaurantMessageTemplate.is_default == True
+            ).update({models.RestaurantMessageTemplate.is_default: False})
+
+        template.template_name = request.template_name
+        template.message_type = request.message_type
+        template.content = request.content
+        template.is_default = request.is_default
+        template.updated_at = datetime.utcnow()
+
+        db.commit()
+        return template
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating message template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating template: {str(e)}")
+
+
+@router.delete("/templates/{template_id}")
+async def delete_message_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+):
+    """
+    Delete a message template
+    """
+    try:
+        template = db.query(models.RestaurantMessageTemplate).filter(
+            models.RestaurantMessageTemplate.id == template_id,
+            models.RestaurantMessageTemplate.restaurant_id == restaurant_id
+        ).first()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        db.delete(template)
+        db.commit()
+
+        return {"success": True, "message": "Template deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting message template: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting template: {str(e)}")
 
 
 @router.post("/send-bulk", response_model=schemas.MessageResponse)

@@ -372,6 +372,24 @@ class Message(MessageBase):
     class Config:
         from_attributes = True
 
+class MessageTemplateBase(BaseModel):
+    template_name: str
+    message_type: str  # 'sms', 'whatsapp'
+    content: str
+    is_default: bool = False
+
+class MessageTemplateCreate(MessageTemplateBase):
+    pass
+
+class MessageTemplate(MessageTemplateBase):
+    id: str
+    restaurant_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class MessageResponse(BaseModel):
     success: bool
     message: str

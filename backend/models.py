@@ -138,11 +138,23 @@ class Notification(Base):
     read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class RestaurantMessageTemplate(Base):
+    __tablename__ = "restaurant_message_templates"
+    id = Column(String, primary_key=True, index=True)
+    restaurant_id = Column(String, ForeignKey("restaurants.id"))
+    template_name = Column(String)  # e.g., "Portal Sharing", "Welcome", "Promotion"
+    message_type = Column(String)  # 'sms', 'whatsapp'
+    content = Column(String)  # Template content with placeholders like {portal_url}
+    is_default = Column(Boolean, default=False)  # Set one as default per restaurant
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Message(Base):
     __tablename__ = "messages"
     id = Column(String, primary_key=True, index=True)
     restaurant_id = Column(String, ForeignKey("restaurants.id"))
     customer_id = Column(String, ForeignKey("users.id"), nullable=True)  # Nullable for 'all' message
+    template_id = Column(String, ForeignKey("restaurant_message_templates.id"), nullable=True)
     message_type = Column(String)  # 'sms', 'whatsapp'
     content = Column(String)
     target = Column(String)  # 'all', 'new' (customers who haven't received a message yet)

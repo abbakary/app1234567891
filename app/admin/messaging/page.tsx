@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { useCustomers, useSendBulkMessage, useMessages } from '@/hooks/use-restaurant-data';
+import { useCustomers, useSendBulkMessage, useMessages, useMessageTemplates, useCreateMessageTemplate, useUpdateMessageTemplate, useDeleteMessageTemplate } from '@/hooks/use-restaurant-data';
 import { toast } from 'sonner';
 import {
   MessageSquare,
