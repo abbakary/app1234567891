@@ -349,22 +349,28 @@ export default function DriversManagement() {
                         <div className="space-y-2 pt-2">
                             <Label>Availability Status</Label>
                             <div className="flex items-center gap-4">
-                                <div
-                                    className="flex flex-col items-center gap-2 cursor-pointer"
+                                <button
+                                    type="button"
                                     onClick={() => setFormData({ ...formData, is_available: true })}
+                                    className={`flex-1 px-6 py-3 rounded-xl border-2 transition-all font-bold cursor-pointer active:scale-95 ${
+                                        formData.is_available
+                                            ? 'border-green-500 bg-green-50 text-green-600'
+                                            : 'border-gray-300 bg-white text-gray-500 hover:border-green-300 hover:bg-green-50/50'
+                                    }`}
                                 >
-                                    <div className={`px-6 py-3 rounded-xl border-2 transition-all ${formData.is_available ? 'border-green-500 bg-green-50' : 'border-border hover:bg-slate-50'}`}>
-                                        <span className={`font-bold ${formData.is_available ? 'text-green-600' : 'text-slate-500'}`}>Available</span>
-                                    </div>
-                                </div>
-                                <div
-                                    className="flex flex-col items-center gap-2 cursor-pointer"
+                                    Available
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => setFormData({ ...formData, is_available: false })}
+                                    className={`flex-1 px-6 py-3 rounded-xl border-2 transition-all font-bold cursor-pointer active:scale-95 ${
+                                        !formData.is_available
+                                            ? 'border-orange-500 bg-orange-50 text-orange-600'
+                                            : 'border-gray-300 bg-white text-gray-500 hover:border-orange-300 hover:bg-orange-50/50'
+                                    }`}
                                 >
-                                    <div className={`px-6 py-3 rounded-xl border-2 transition-all ${!formData.is_available ? 'border-orange-500 bg-orange-50' : 'border-border hover:bg-slate-50'}`}>
-                                        <span className={`font-bold ${!formData.is_available ? 'text-orange-600' : 'text-slate-500'}`}>Busy / Offline</span>
-                                    </div>
-                                </div>
+                                    Busy / Offline
+                                </button>
                             </div>
                         </div>
                     </div>

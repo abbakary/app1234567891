@@ -274,13 +274,16 @@ export function CustomerOrdersPanel({ restaurantId, onOrderApproved }: { restaur
                         <Button
                           variant="outline"
                           className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400"
-                          onClick={() => setSelectedOrderForDriver(order)}
+                          onClick={() => {
+                            setSelectedOrderForDriver(order);
+                            setSelectedDriver('');
+                          }}
                         >
                           <Truck className="h-4 w-4 mr-2" />
                           Assign Driver
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
                         <DialogHeader>
                           <DialogTitle>Assign Driver to Delivery</DialogTitle>
                           <DialogDescription>
@@ -290,13 +293,13 @@ export function CustomerOrdersPanel({ restaurantId, onOrderApproved }: { restaur
 
                         <div className="space-y-4">
                           <div>
-                            <label className="text-sm font-medium mb-2 block">Available Drivers</label>
-                            <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                              <SelectTrigger>
+                            <label htmlFor="driver-select" className="text-sm font-medium mb-2 block">Available Drivers</label>
+                            <Select value={selectedDriver || ''} onValueChange={setSelectedDriver}>
+                              <SelectTrigger id="driver-select" className={selectedDriver ? '' : 'text-gray-500'}>
                                 <SelectValue placeholder="Select a driver" />
                               </SelectTrigger>
                               <SelectContent>
-                                {drivers.filter(d => d.is_available).length > 0 ? (
+                                {drivers && drivers.filter(d => d.is_available).length > 0 ? (
                                   drivers
                                     .filter(d => d.is_available)
                                     .map(driver => (
@@ -308,9 +311,9 @@ export function CustomerOrdersPanel({ restaurantId, onOrderApproved }: { restaur
                                       </SelectItem>
                                     ))
                                 ) : (
-                                  <SelectItem value="none" disabled>
+                                  <div className="px-2 py-1.5 text-sm text-gray-500">
                                     No available drivers
-                                  </SelectItem>
+                                  </div>
                                 )}
                               </SelectContent>
                             </Select>

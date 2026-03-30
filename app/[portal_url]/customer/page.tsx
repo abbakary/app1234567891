@@ -443,19 +443,26 @@ export default function PortalCustomerMenuPage() {
                     <div className="space-y-4">
                       {orderType === 'dine-in' && (
                         <div className="space-y-2">
-                          <Label className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] px-1">Table Details</Label>
-                          <Select value={tableId} onValueChange={setTableId}>
-                            <SelectTrigger className="h-14 rounded-2xl bg-white dark:bg-gray-900 border-none shadow-sm font-semibold">
+                          <Label htmlFor="dine-in-table" className="text-[11px] font-black text-gray-400 uppercase tracking-[0.15em] px-1">Table Details</Label>
+                          <Select value={tableId || ''} onValueChange={setTableId}>
+                            <SelectTrigger id="dine-in-table" className={`h-14 rounded-2xl bg-white dark:bg-gray-900 border-none shadow-sm font-semibold ${!tableId ? 'text-gray-500' : ''}`}>
                               <SelectValue placeholder="Which table are you at?" />
                             </SelectTrigger>
                             <SelectContent className="rounded-2xl border-none shadow-xl">
-                              {tables.map(table => (
-                                <SelectItem key={table.id} value={table.id} className="rounded-xl my-1 font-medium">
-                                  {table.name}
-                                </SelectItem>
-                              ))}
+                              {tables && tables.length > 0 ? (
+                                tables.map(table => (
+                                  <SelectItem key={table.id} value={String(table.id)} className="rounded-xl my-1 font-medium">
+                                    {table.name}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                <div className="px-2 py-1.5 text-sm text-gray-500">No tables available</div>
+                              )}
                             </SelectContent>
                           </Select>
+                          {orderType === 'dine-in' && !tableId && (
+                            <p className="text-xs text-red-500 font-medium">Required: Please select a table</p>
+                          )}
                         </div>
                       )}
 

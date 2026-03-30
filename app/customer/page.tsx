@@ -716,18 +716,25 @@ export default function CustomerMenuPage() {
                         className="space-y-2 overflow-hidden"
                       >
                         <Label htmlFor="table">Select Your Table</Label>
-                        <Select value={tableId} onValueChange={setTableId}>
-                          <SelectTrigger id="table" className="rounded-xl bg-white/80 dark:bg-gray-900/80">
+                        <Select value={tableId || ''} onValueChange={setTableId}>
+                          <SelectTrigger id="table" className={`rounded-xl bg-white/80 dark:bg-gray-900/80 ${!tableId ? 'text-gray-500' : ''}`}>
                             <SelectValue placeholder="Choose your table" />
                           </SelectTrigger>
                           <SelectContent>
-                            {tables.map(table => (
-                              <SelectItem key={table.id} value={table.id}>
-                                {table.name}
-                              </SelectItem>
-                            ))}
+                            {tables && tables.length > 0 ? (
+                              tables.map(table => (
+                                <SelectItem key={table.id} value={String(table.id)}>
+                                  {table.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-gray-500">No tables available</div>
+                            )}
                           </SelectContent>
                         </Select>
+                        {!tableId && (
+                          <p className="text-xs text-red-500 font-medium">Required: Please select a table</p>
+                        )}
                       </motion.div>
                     )}
 
