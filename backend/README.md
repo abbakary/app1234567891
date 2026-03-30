@@ -31,9 +31,6 @@ This is the fully functioning FastAPI backend for the RestauFlow restaurant mana
    uvicorn main:app --reload
    ```
 
-## Next Steps for the Frontend
+## Next Steps for the Frontend implementation
 
-Right now, your React app uses mocked data in `hooks/use-restaurant-data.ts`. 
-To connect this new backend:
-1. Replace the inner logic of `useMenuItems`, `useOrder`, etc. with `fetch('http://localhost:8000/api/...')`.
-2. Inside your providers, connect to `ws://localhost:8000/ws` using standard WebSockets. When the frontend receives `"type": "NEW_ORDER"`, trigger a React Query query invalidation!
+
