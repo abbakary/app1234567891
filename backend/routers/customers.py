@@ -11,6 +11,57 @@ from auth_utils import verify_restaurant
 router = APIRouter(prefix="/api/customers", tags=["Customers"])
 
 
+@router.get("/profile")
+async def get_customer_profile(
+    db: Session = Depends(get_db),
+    restaurant_id: str = Depends(verify_restaurant),
+    x_customer_id: str = Header(...),
+):
+    """
+    Get customer profile including personal details and order statistics
+    """
+    try:
+        # Get the customer user
+        customer = db.query(models.User).filter(
+            models.User.id == x_customer_id,
+            models.User.restaurant_id == restaurant_id,
+            models.User.role == "customer"
+        ).first()
+
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+        # Get customer's orders
+        orders = db.query(models.Order).filter(
+            models.Order.customer_id == x_customer_id,
+            models.Order.restaurant_id == restaurant_id
+        ).all()
+
+        # Calculate statistics
+        total_orders = len(orders)
+        completed_orders = len([o for o in orders if o.status == "paid"])
+        total_spent = sum([o.total for o in orders if o.status == "paid"])
+
+        # Calculate rewards (placeholder logic - 1 point per 100 currency)
+        rewards_points = int(total_spent * 10)
+
+        return {
+            "id": customer.id,
+            "name": customer.name or customer.username,
+            "username": customer.username,
+            "email": customer.email,
+            "phone": customer.phone,
+            "total_orders": total_orders,
+            "completed_orders": completed_orders,
+            "total_spent": total_spent,
+            "rewards_points": rewards_points,
+        }
+
+    except Exception as e:
+        print(f"Error fetching customer profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching profile: {str(e)}")
+
+
 @router.post("/location")
 async def update_customer_location(
     location_data: schemas.CustomerLocationUpdate,

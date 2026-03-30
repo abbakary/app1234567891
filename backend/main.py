@@ -10,7 +10,7 @@ import models
 from database import engine
 from websocket_manager import manager
 
-from routers import auth, orders, tables, menu, payments, stats, notifications, seed, restaurants, platform, drivers, uploads, users, analytics, customers
+from routers import auth, orders, tables, menu, payments, stats, notifications, seed, restaurants, platform, drivers, uploads, users, analytics, customers, messaging
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -65,6 +65,7 @@ app.include_router(seed.router)
 app.include_router(uploads.router)
 app.include_router(users.router)
 app.include_router(analytics.router)
+app.include_router(messaging.router)
 
 if __name__ == "__main__":
     import uvicorn

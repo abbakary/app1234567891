@@ -137,3 +137,17 @@ class Notification(Base):
     type = Column(String)  # 'order', 'payment', 'system'
     read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(String, primary_key=True, index=True)
+    restaurant_id = Column(String, ForeignKey("restaurants.id"))
+    customer_id = Column(String, ForeignKey("users.id"), nullable=True)  # Nullable for 'all' message
+    message_type = Column(String)  # 'sms', 'whatsapp'
+    content = Column(String)
+    target = Column(String)  # 'all', 'new' (customers who haven't received a message yet)
+    phone_number = Column(String)
+    status = Column(String, default="pending")  # 'pending', 'sent', 'failed'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+    error_message = Column(String, nullable=True)

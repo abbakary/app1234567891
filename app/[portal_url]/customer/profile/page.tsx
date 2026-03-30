@@ -1,41 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  LogOut, 
-  ChevronRight, 
-  Settings, 
-  Bell, 
-  ShieldCheck, 
+import {
+  User,
+  Mail,
+  Phone,
+  LogOut,
+  ChevronRight,
+  Settings,
+  Bell,
+  ShieldCheck,
   HelpCircle,
   Camera,
   Heart
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useCustomerProfile } from '@/hooks/use-restaurant-data';
 
 export default function CustomerProfilePage() {
   const router = useRouter();
   const params = useParams();
   const portalUrl = params.portal_url as string;
 
-  const [user, setUser] = useState<any>(null);
+  const { data: customer, isLoading, error } = useCustomerProfile();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  useEffect(() => {
-    const auth = localStorage.getItem('customer_auth');
-    if (auth) {
-      setUser(JSON.parse(auth));
-    } else {
-      router.replace(`/${portalUrl}/auth`);
-    }
-  }, [portalUrl, router]);
 
   const handleLogout = () => {
     setIsLoggingOut(true);
@@ -48,14 +40,48 @@ export default function CustomerProfilePage() {
     }, 800);
   };
 
-  if (!user) return null;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !customer) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-5">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <p className="text-red-600 mb-4">Failed to load profile. Please try again.</p>
+            <Button onClick={() => router.replace(`/${portalUrl}/auth`)} className="w-full">
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const menuItems = [
-    { icon: Settings, label: 'Preferences', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { icon: Bell, label: 'Notifications', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-    { icon: ShieldCheck, label: 'Privacy & Security', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-    { icon: HelpCircle, label: 'Support Center', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+    { icon: Settings, label: 'Preferences', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', action: 'preferences' },
+    { icon: Bell, label: 'Notifications', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', action: 'notifications' },
+    { icon: ShieldCheck, label: 'Privacy & Security', color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', action: 'privacy' },
+    { icon: HelpCircle, label: 'Support Center', color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20', action: 'support' },
   ];
+
+  const handleMenuItemClick = (action: string) => {
+    const messages: Record<string, string> = {
+      preferences: 'Preferences settings will be available soon',
+      notifications: 'Notification settings will be available soon',
+      privacy: 'Privacy & Security settings will be available soon',
+      support: 'Support Center will be available soon',
+    };
+    toast.info(messages[action] || 'Feature coming soon');
+  };
 
   return (
     <div className="space-y-8 pb-32 px-5">
@@ -83,7 +109,7 @@ export default function CustomerProfilePage() {
                 </div>
                 
                 <div className="text-center mt-5">
-                   <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-none mb-2">{user.name}</h2>
+                   <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight leading-none mb-2">{customer.name}</h2>
                    <div className="flex items-center justify-center gap-1.5 px-3 py-1 bg-primary/5 rounded-full">
                       <Heart className="w-3 h-3 text-primary fill-primary" />
                       <span className="text-[10px] font-black text-primary uppercase tracking-widest">Premium Foodie</span>
@@ -94,11 +120,11 @@ export default function CustomerProfilePage() {
              <div className="mt-8 grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center justify-center p-4 rounded-3xl bg-gray-50/50 dark:bg-gray-800/20 border border-gray-100 dark:border-gray-800">
                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Orders</span>
-                   <span className="text-lg font-black text-gray-900 dark:text-white">24</span>
+                   <span className="text-lg font-black text-gray-900 dark:text-white">{customer.total_orders}</span>
                 </div>
                 <div className="flex flex-col items-center justify-center p-4 rounded-3xl bg-gray-50/50 dark:bg-gray-800/20 border border-gray-100 dark:border-gray-800">
                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Rewards</span>
-                   <span className="text-lg font-black text-primary">1,250 PTS</span>
+                   <span className="text-lg font-black text-primary">{customer.rewards_points.toLocaleString()} PTS</span>
                 </div>
              </div>
           </CardContent>
@@ -116,7 +142,7 @@ export default function CustomerProfilePage() {
                   </div>
                   <div className="flex flex-col">
                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Address</span>
-                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{user.email}</span>
+                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{customer.email || 'Not provided'}</span>
                   </div>
                </div>
                <div className="p-4 flex items-center gap-4">
@@ -125,7 +151,7 @@ export default function CustomerProfilePage() {
                   </div>
                   <div className="flex flex-col">
                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Phone Number</span>
-                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{user.phone || 'Not provided'}</span>
+                     <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{customer.phone || 'Not provided'}</span>
                   </div>
                </div>
             </CardContent>
@@ -138,8 +164,9 @@ export default function CustomerProfilePage() {
          <Card className="premium-card border-none shadow-sm dark:bg-gray-900">
             <CardContent className="p-2">
                {menuItems.map((item, idx) => (
-                  <button 
+                  <button
                     key={item.label}
+                    onClick={() => handleMenuItemClick(item.action)}
                     className={`w-full p-4 flex items-center justify-between group active:scale-[0.98] transition-all ${
                        idx !== menuItems.length - 1 ? 'border-b border-gray-50 dark:border-gray-800' : ''
                     }`}
