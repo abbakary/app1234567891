@@ -14,8 +14,22 @@ function getRestaurantId(): string {
     return sessionStorage.getItem('restaurant_id') || '';
 }
 
+// Get customer ID from localStorage if customer is logged in
+function getCustomerId(): string {
+    if (typeof window === 'undefined') return '';
+    const auth = localStorage.getItem('customer_auth');
+    if (!auth) return '';
+    try {
+        const authData = JSON.parse(auth);
+        return authData.user_id || '';
+    } catch {
+        return '';
+    }
+}
+
 function buildHeaders(extras?: Record<string, string>): HeadersInit {
     const restaurantId = getRestaurantId();
+    const customerId = getCustomerId();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...extras,
@@ -23,15 +37,22 @@ function buildHeaders(extras?: Record<string, string>): HeadersInit {
     if (restaurantId) {
         headers['X-Restaurant-ID'] = restaurantId;
     }
+    if (customerId) {
+        headers['X-Customer-ID'] = customerId;
+    }
     return headers;
 }
 
 function buildFormHeaders(): HeadersInit {
     const restaurantId = getRestaurantId();
+    const customerId = getCustomerId();
     // Do NOT set Content-Type here – browser sets it automatically with boundary for FormData
     const headers: Record<string, string> = {};
     if (restaurantId) {
         headers['X-Restaurant-ID'] = restaurantId;
+    }
+    if (customerId) {
+        headers['X-Customer-ID'] = customerId;
     }
     return headers;
 }

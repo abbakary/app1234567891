@@ -350,3 +350,48 @@ class LocationData(BaseModel):
     @validator("timestamp", pre=True, always=True)
     def set_timestamp(cls, v):
         return v or datetime.utcnow()
+
+class MessageBase(BaseModel):
+    message_type: str  # 'sms', 'whatsapp'
+    content: str
+    target: str  # 'all', 'new'
+
+class MessageCreate(MessageBase):
+    pass
+
+class Message(MessageBase):
+    id: str
+    restaurant_id: str
+    customer_id: Optional[str] = None
+    phone_number: str
+    status: str
+    created_at: datetime
+    sent_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class MessageTemplateBase(BaseModel):
+    template_name: str
+    message_type: str  # 'sms', 'whatsapp'
+    content: str
+    is_default: bool = False
+
+class MessageTemplateCreate(MessageTemplateBase):
+    pass
+
+class MessageTemplate(MessageTemplateBase):
+    id: str
+    restaurant_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class MessageResponse(BaseModel):
+    success: bool
+    message: str
+    messages_sent: int = 0
+    messages_failed: int = 0

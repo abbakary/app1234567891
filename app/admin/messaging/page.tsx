@@ -15,15 +15,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { useCustomers } from '@/hooks/use-restaurant-data';
+import { useCustomers, useSendBulkMessage, useMessages, useMessageTemplates, useCreateMessageTemplate, useUpdateMessageTemplate, useDeleteMessageTemplate } from '@/hooks/use-restaurant-data';
 import { toast } from 'sonner';
 import {
   MessageSquare,
@@ -39,8 +32,6 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 interface Customer {
   id: string;
   name?: string;
@@ -50,25 +41,11 @@ interface Customer {
   createdAt?: string;
 }
 
-interface MessageRecipient {
-  customerId: string;
-  phone: string;
-  name?: string;
-}
-
-interface MessageLog {
-  id: string;
-  customerId: string;
-  customerName?: string;
-  customerPhone: string;
-  method: 'sms' | 'whatsapp';
-  status: 'pending' | 'sent' | 'failed' | 'delivered';
-  portalUrl: string;
-  sentAt: string;
-}
-
 export default function MessagingPage() {
   const { data: customers = [], isLoading } = useCustomers();
+  const { data: messages = [] } = useMessages();
+  const sendBulkMessage = useSendBulkMessage();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [messageMethod, setMessageMethod] = useState<'sms' | 'whatsapp'>('sms');
   const [sendToNew, setSendToNew] = useState(true);
@@ -76,8 +53,11 @@ export default function MessagingPage() {
   const [portalUrl, setPortalUrl] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [messageLog, setMessageLog] = useState<MessageLog[]>([]);
+
+  // Get customers who have already received messages
+  const customersWithMessages = useMemo(() => {
+    return new Set(messages.map(m => m.customer_id).filter(Boolean));
+  }, [messages]);
 
   // Filter customers based on search and "new only" option
   const filteredCustomers = useMemo(() => {
@@ -88,27 +68,28 @@ export default function MessagingPage() {
           c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.phone?.includes(searchQuery) ||
           c.username?.toLowerCase().includes(searchQuery.toLowerCase());
-        
+
         // If sendToNew is true, filter out customers who already received messages
         if (sendToNew) {
-          const alreadySent = messageLog.some(log => log.customerId === c.id);
+          const alreadySent = customersWithMessages.has(c.id);
           return matchesSearch && !alreadySent;
         }
-        
+
         return matchesSearch;
       })
       .filter(c => c.phone) // Only show customers with phone numbers
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [customers, searchQuery, sendToNew, messageLog]);
+  }, [customers, searchQuery, sendToNew, customersWithMessages]);
 
-  // Get already-sent-to customers
-  const sentToCustomers = useMemo(() => {
-    return new Set(messageLog.map(log => log.customerId));
-  }, [messageLog]);
-
-  const recipientCount = sendToNew 
-    ? filteredCustomers.length 
+  const recipientCount = sendToNew
+    ? filteredCustomers.length
     : filteredCustomers.length;
+
+  const statsCounts = {
+    total: customers.filter(c => c.phone).length,
+    alreadySent: customersWithMessages.size,
+    pending: sendToNew ? filteredCustomers.length : filteredCustomers.length,
+  };
 
   const handleSelectAll = () => {
     if (selectedCustomers.size === filteredCustomers.length) {
@@ -149,57 +130,19 @@ Thanks for ordering with us! 🍽️`;
     }
 
     setShowConfirmDialog(false);
-    setIsSending(true);
 
     try {
-      // Get selected or filtered customers
-      const targetCustomers = sendToNew
-        ? filteredCustomers.filter(c => !sentToCustomers.has(c.id))
-        : filteredCustomers.filter(c => selectedCustomers.has(c.id));
+      const messageContent = `Hello! 👋\n\nShares our restaurant portal URL with you:\n🔗 ${portalUrl}\n${customMessage ? `\n${customMessage}` : ''}\n\nThanks for ordering with us! 🍽️`;
 
-      if (targetCustomers.length === 0) {
-        toast.error('No customers to send messages to');
-        setIsSending(false);
-        return;
-      }
-
-      // Mock API call to send messages
-      const response = await fetch(`${BASE_URL}/api/messaging/send-bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Restaurant-ID': localStorage.getItem('restaurant_id') || '',
-        },
-        body: JSON.stringify({
-          method: messageMethod,
-          portalUrl,
-          customMessage,
-          recipients: targetCustomers.map(c => ({
-            customerId: c.id,
-            phone: c.phone,
-            name: c.name,
-          })),
-        }),
+      const result = await sendBulkMessage.mutateAsync({
+        message_type: messageMethod,
+        content: messageContent,
+        target: sendToNew ? 'new' : 'all',
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to send messages');
-      }
-
-      const result = await response.json();
-      
-      // Update message log with results
-      const newLogs = result.logs.map((log: any) => ({
-        ...log,
-        customerName: targetCustomers.find(c => c.id === log.customerId)?.name,
-      }));
-
-      setMessageLog(prev => [...prev, ...newLogs]);
-
       // Show summary
-      const successful = newLogs.filter((l: MessageLog) => l.status === 'sent').length;
-      toast.success(`Messages sent! ${successful}/${newLogs.length} delivered`, {
-        description: `Sent via ${messageMethod.toUpperCase()}`,
+      toast.success(`Messages sent successfully!`, {
+        description: `${result.messages_sent} sent, ${result.messages_failed} failed`,
       });
 
       // Reset form
@@ -209,8 +152,6 @@ Thanks for ordering with us! 🍽️`;
     } catch (error) {
       console.error('Error sending messages:', error);
       toast.error('Failed to send messages. Please try again.');
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -265,8 +206,8 @@ Thanks for ordering with us! 🍽️`;
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Ready to Send</p>
-                <p className="text-3xl font-bold text-orange-600">{statsCounts.pending}</p>
+                <p className="text-sm text-muted-foreground">Ready to Send (New)</p>
+                <p className="text-3xl font-bold text-orange-600">{filteredCustomers.filter(c => !customersWithMessages.has(c.id)).length}</p>
               </div>
               <Clock className="h-8 w-8 text-orange-500 opacity-50" />
             </div>
@@ -398,18 +339,18 @@ Thanks for ordering with us! 🍽️`;
               <Button
                 onClick={() => setShowConfirmDialog(true)}
                 disabled={
-                  isSending || 
-                  !portalUrl.trim() || 
+                  sendBulkMessage.isPending ||
+                  !portalUrl.trim() ||
                   (sendToNew ? filteredCustomers.length === 0 : selectedCustomers.size === 0)
                 }
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-bold rounded-lg flex items-center justify-center gap-2"
               >
-                {isSending ? (
+                {sendBulkMessage.isPending ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <Send className="h-5 w-5" />
                 )}
-                {isSending ? 'Sending...' : 'Send Messages'}
+                {sendBulkMessage.isPending ? 'Sending...' : 'Send Messages'}
               </Button>
             </CardContent>
           </Card>
@@ -435,7 +376,7 @@ Thanks for ordering with us! 🍽️`;
               <CardTitle className="text-base">
                 Recipients
                 <Badge variant="outline" className="ml-2">
-                  {sendToNew ? filteredCustomers.length : selectedCustomers.size}
+                  {sendToNew ? filteredCustomers.filter(c => !customersWithMessages.has(c.id)).length : selectedCustomers.size}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -446,13 +387,13 @@ Thanks for ordering with us! 🍽️`;
                     Search or select customers
                   </p>
                 )}
-                {filteredCustomers.length === 0 && sendToNew && (
+                {filteredCustomers.filter(c => !customersWithMessages.has(c.id)).length === 0 && sendToNew && (
                   <p className="text-sm text-muted-foreground text-center py-8">
                     All customers have already received messages
                   </p>
                 )}
                 {sendToNew
-                  ? filteredCustomers.slice(0, 10).map(customer => (
+                  ? filteredCustomers.filter(c => !customersWithMessages.has(c.id)).slice(0, 10).map(customer => (
                       <div
                         key={customer.id}
                         className="flex items-center gap-2 p-2 rounded hover:bg-secondary"
@@ -489,9 +430,9 @@ Thanks for ordering with us! 🍽️`;
                         </div>
                       </div>
                     ))}
-                {filteredCustomers.length > 10 && (
+                {sendToNew && filteredCustomers.filter(c => !customersWithMessages.has(c.id)).length > 10 && (
                   <p className="text-xs text-muted-foreground text-center py-2">
-                    +{filteredCustomers.length - 10} more
+                    +{filteredCustomers.filter(c => !customersWithMessages.has(c.id)).length - 10} more
                   </p>
                 )}
               </div>
@@ -550,7 +491,7 @@ Thanks for ordering with us! 🍽️`;
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">{customer.email}</td>
                       <td className="py-3 px-4">
-                        {sentToCustomers.has(customer.id) ? (
+                        {customersWithMessages.has(customer.id) ? (
                           <Badge variant="default" className="bg-green-600">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Sent
@@ -569,7 +510,7 @@ Thanks for ordering with us! 🍽️`;
       )}
 
       {/* Message Log / History */}
-      {messageLog.length > 0 && (
+      {messages.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -579,47 +520,50 @@ Thanks for ordering with us! 🍽️`;
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {messageLog.map(log => (
-                <div
-                  key={log.id}
-                  className="flex items-start justify-between p-3 rounded-lg bg-secondary/50 border border-border"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{log.customerName || 'Customer'}</p>
-                      <Badge variant="outline" className="text-xs">
-                        {log.method.toUpperCase()}
-                      </Badge>
+              {messages.slice(0, 20).map(message => {
+                const customer = customers.find(c => c.id === message.customer_id);
+                return (
+                  <div
+                    key={message.id}
+                    className="flex items-start justify-between p-3 rounded-lg bg-secondary/50 border border-border"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{customer?.name || 'Customer'}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {message.message_type.toUpperCase()}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{message.phone_number}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{log.customerPhone}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 justify-end mb-1">
-                      {log.status === 'sent' && (
-                        <Badge variant="default" className="bg-green-600">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Sent
-                        </Badge>
-                      )}
-                      {log.status === 'pending' && (
-                        <Badge variant="outline" className="text-orange-600">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Pending
-                        </Badge>
-                      )}
-                      {log.status === 'failed' && (
-                        <Badge variant="destructive">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Failed
-                        </Badge>
-                      )}
+                    <div className="text-right">
+                      <div className="flex items-center gap-2 justify-end mb-1">
+                        {message.status === 'sent' && (
+                          <Badge variant="default" className="bg-green-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Sent
+                          </Badge>
+                        )}
+                        {message.status === 'pending' && (
+                          <Badge variant="outline" className="text-orange-600">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
+                        )}
+                        {message.status === 'failed' && (
+                          <Badge variant="destructive">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Failed
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(message.sent_at || message.created_at).toLocaleDateString()} {new Date(message.sent_at || message.created_at).toLocaleTimeString()}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(log.sentAt).toLocaleDateString()} {new Date(log.sentAt).toLocaleTimeString()}
-                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -670,10 +614,10 @@ Thanks for ordering with us! 🍽️`;
             </Button>
             <Button
               onClick={handleSendMessages}
-              disabled={isSending}
+              disabled={sendBulkMessage.isPending}
               className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-lg"
             >
-              {isSending ? 'Sending...' : 'Send Messages'}
+              {sendBulkMessage.isPending ? 'Sending...' : 'Send Messages'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -466,6 +466,130 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
+// ==================== CUSTOMER PROFILE ====================
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  username: string;
+  email?: string;
+  phone?: string;
+  total_orders: number;
+  completed_orders: number;
+  total_spent: number;
+  rewards_points: number;
+}
+
+export function useCustomerProfile() {
+  return useQuery({
+    queryKey: ['customer', 'profile'] as const,
+    queryFn: () => api.get<CustomerProfile>('/api/customers/profile'),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// ==================== MESSAGING ====================
+export interface Message {
+  id: string;
+  restaurant_id: string;
+  customer_id?: string;
+  template_id?: string;
+  message_type: string;
+  content: string;
+  target: string;
+  phone_number: string;
+  status: string;
+  created_at: string;
+  sent_at?: string;
+  error_message?: string;
+}
+
+export interface MessageTemplate {
+  id: string;
+  restaurant_id: string;
+  template_name: string;
+  message_type: string;
+  content: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MessageResponse {
+  success: boolean;
+  message: string;
+  messages_sent: number;
+  messages_failed: number;
+}
+
+export function useMessageTemplates() {
+  return useQuery({
+    queryKey: ['messageTemplates'] as const,
+    queryFn: () => api.get<MessageTemplate[]>('/api/messaging/templates'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCreateMessageTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      template_name: string;
+      message_type: 'sms' | 'whatsapp';
+      content: string;
+      is_default: boolean;
+    }) =>
+      api.post<MessageTemplate>('/api/messaging/templates', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messageTemplates'] });
+    },
+  });
+}
+
+export function useUpdateMessageTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ templateId, data }: { templateId: string; data: { template_name: string; message_type: 'sms' | 'whatsapp'; content: string; is_default: boolean } }) =>
+      api.patch<MessageTemplate>(`/api/messaging/templates/${templateId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messageTemplates'] });
+    },
+  });
+}
+
+export function useDeleteMessageTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (templateId: string) =>
+      api.delete(`/api/messaging/templates/${templateId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messageTemplates'] });
+    },
+  });
+}
+
+export function useSendBulkMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      message_type: 'sms' | 'whatsapp';
+      content: string;
+      target: 'all' | 'new';
+    }) =>
+      api.post<MessageResponse>('/api/messaging/send-bulk', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+    },
+  });
+}
+
+export function useMessages() {
+  return useQuery({
+    queryKey: ['messages'] as const,
+    queryFn: () => api.get<Message[]>('/api/messaging/messages'),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 // ==================== DEV UTILITY ====================
 export function useResetData() {
   const queryClient = useQueryClient();
