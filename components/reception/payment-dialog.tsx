@@ -96,15 +96,33 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
   };
 
   const handleMobileMoneySuccess = async () => {
-    // After ClickPesa form successfully initiates payment, create payment record
+    // After ClickPesa form successfully initiates payment, create payment record with pending status
     try {
-      const payment = await createPayment.mutateAsync({
-        orderId: order.id,
-        amount: order.total,
-        method: 'mobile',
+      const transactionId = sessionStorage.getItem('pendingTransactionId');
+      const res = await fetch(`${BASE_URL}/api/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Restaurant-ID': order.restaurantId || '',
+        },
+        body: JSON.stringify({
+          order_id: order.id,
+          amount: order.total,
+          method: 'mobile',
+          status: 'pending',
+          reference: transactionId,
+        }),
       });
 
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || 'Failed to create payment record');
+      }
+
+      const payment = await res.json();
       console.log('Mobile money payment created:', payment);
+      sessionStorage.removeItem('pendingTransactionId');
+      
       toast.success('Mobile money payment initiated', {
         description: `Order #${order.id.slice(-6)} awaiting payment confirmation`
       });
@@ -175,101 +193,116 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
             </DialogHeader>
 
             <div className="py-4">
-              {/* Order Summary */}
-              <div className="bg-secondary/50 rounded-lg p-4 mb-6">
-                <div className="space-y-2 text-sm">
-                  {order.items.map(item => (
-                    <div key={item.menuItemId} className="flex justify-between">
-                      <span>
-                        {item.menuItem.name} x{item.quantity}
-                      </span>
-                      <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
-                  <div className="border-t pt-2 mt-2">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtotal</span>
-                      <span>${order.subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Tax</span>
-                      <span>${order.tax.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg mt-1">
-                      <span>Total</span>
-                      <span>${order.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {showQR ? (
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Customer scans this QR code to pay
-                  </p>
-                  <div className="bg-white p-4 rounded-lg inline-block mx-auto">
-                    <QRCodeSVG value={qrData} size={200} />
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    <p className="font-semibold text-xl">TSH {order.total.toLocaleString()}</p>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setShowQR(false)}
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      className="w-full"
-                      onClick={handleQRPaymentConfirm}
-                      disabled={createPayment.isPending}
-                    >
-                      Confirm Payment Received
-                    </Button>
-                  </div>
-                </div>
+              {checkoutStep === 'payment' && method === 'mobile' ? (
+                <ClickPesaForm
+                  amount={order.total}
+                  onSuccess={handleMobileMoneySuccess}
+                  onBack={() => setCheckoutStep('method')}
+                  isLoading={createPayment.isPending}
+                  restaurantId={order.restaurantId || ''}
+                  orderId={order.id}
+                />
               ) : (
                 <>
-                  <Label className="text-base font-semibold mb-3 block">
-                    Select Payment Method
-                  </Label>
-                  <RadioGroup
-                    value={method}
-                    onValueChange={(v) => setMethod(v as PaymentMethod)}
-                    className="grid grid-cols-2 gap-3"
-                  >
-                    {paymentMethods.map(({ value, label, icon: Icon }) => (
-                      <Label
-                        key={value}
-                        htmlFor={value}
-                        className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                          method === value
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <RadioGroupItem value={value} id={value} className="sr-only" />
-                        <Icon className={`h-6 w-6 mb-2 ${method === value ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <span className={`text-sm font-medium ${method === value ? 'text-primary' : ''}`}>
-                          {label}
-                        </span>
-                      </Label>
-                    ))}
-                  </RadioGroup>
+                  {/* Order Summary */}
+                  <div className="bg-secondary/50 rounded-lg p-4 mb-6">
+                    <div className="space-y-2 text-sm">
+                      {order.items.map(item => (
+                        <div key={item.menuItemId} className="flex justify-between">
+                          <span>
+                            {item.menuItem.name} x{item.quantity}
+                          </span>
+                          <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="border-t pt-2 mt-2">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Subtotal</span>
+                          <span>${order.subtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Tax</span>
+                          <span>${order.tax.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-lg mt-1">
+                          <span>Total</span>
+                          <span>${order.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                  <Button
-                    className="w-full mt-6"
-                    size="lg"
-                    onClick={handlePayment}
-                    disabled={createPayment.isPending}
-                  >
-                    {createPayment.isPending
-                      ? 'Processing...'
-                      : method === 'qr'
-                      ? 'Show QR Code'
-                      : `Pay $${order.total.toFixed(2)}`}
-                  </Button>
+                  {showQR ? (
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Customer scans this QR code to pay
+                      </p>
+                      <div className="bg-white p-4 rounded-lg inline-block mx-auto">
+                        <QRCodeSVG value={qrData} size={200} />
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        <p className="font-semibold text-xl">TSH {order.total.toLocaleString()}</p>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => setShowQR(false)}
+                        >
+                          Back
+                        </Button>
+                        <Button
+                          className="w-full"
+                          onClick={handleQRPaymentConfirm}
+                          disabled={createPayment.isPending}
+                        >
+                          Confirm Payment Received
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Label className="text-base font-semibold mb-3 block">
+                        Select Payment Method
+                      </Label>
+                      <RadioGroup
+                        value={method}
+                        onValueChange={(v) => setMethod(v as PaymentMethod)}
+                        className="grid grid-cols-2 gap-3"
+                      >
+                        {paymentMethods.map(({ value, label, icon: Icon }) => (
+                          <Label
+                            key={value}
+                            htmlFor={value}
+                            className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                              method === value
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <RadioGroupItem value={value} id={value} className="sr-only" />
+                            <Icon className={`h-6 w-6 mb-2 ${method === value ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <span className={`text-sm font-medium ${method === value ? 'text-primary' : ''}`}>
+                              {label}
+                            </span>
+                          </Label>
+                        ))}
+                      </RadioGroup>
+
+                      <Button
+                        className="w-full mt-6"
+                        size="lg"
+                        onClick={handlePaymentMethodSelect}
+                        disabled={createPayment.isPending}
+                      >
+                        {createPayment.isPending
+                          ? 'Processing...'
+                          : method === 'qr'
+                          ? 'Show QR Code'
+                          : method === 'mobile'
+                          ? 'Pay via Mobile Money'
+                          : `Pay $${order.total.toFixed(2)}`}
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </div>

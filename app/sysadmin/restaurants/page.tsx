@@ -30,8 +30,6 @@ interface Restaurant {
     email?: string;
     phone?: string;
     address?: string;
-    airpay_account_id?: string;
-    payment_status: 'pending' | 'active' | 'failed';
     created_at: string;
     logo_url?: string;
     customer_portal_url?: string;
@@ -83,7 +81,7 @@ export default function RestaurantsPage() {
 
     useEffect(() => {
         fetchRestaurants();
-        // Refresh every 10 seconds to check Airpay account creation status
+        // Refresh every 10 seconds to check restaurant data
         const interval = setInterval(fetchRestaurants, 10000);
         return () => clearInterval(interval);
     }, []);
@@ -165,7 +163,7 @@ export default function RestaurantsPage() {
                 setLogoFile(null);
                 setLogoPreview('');
                 setShowForm(false);
-                toast.success('Restaurant created! Airpay account setup in progress...');
+                toast.success('Restaurant created successfully!');
             } else {
                 const error = await res.json();
                 const errorMsg = Array.isArray(error.detail)
@@ -502,18 +500,6 @@ export default function RestaurantsPage() {
                                 </div>
                             </div>
 
-                            {/* Airpay Info */}
-                            <div className="space-y-4 p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-[24px] border border-indigo-200 dark:border-indigo-800/50">
-                                <div className="flex items-start gap-3">
-                                    <AlertCircle className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="text-sm font-bold text-indigo-900 dark:text-indigo-300">Airpay Integration</p>
-                                        <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1">
-                                            When you create this restaurant, an Airpay sub-account will be automatically provisioned. You can monitor the setup status below.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
 
                             {/* Actions */}
                             <div className="flex gap-4 justify-end pt-8 border-t border-black/5 dark:border-white/5">
@@ -615,13 +601,7 @@ export default function RestaurantsPage() {
                                                     {getStatusBadge(restaurant.payment_status)}
                                                 </div>
 
-                                                {restaurant.airpay_account_id && (
-                                                    <div className="text-sm">
-                                                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">AIRPAY</p>
-                                                        <p className="text-gray-900 dark:text-white font-mono text-xs truncate">{restaurant.airpay_account_id.slice(0, 12)}...</p>
-                                                    </div>
-                                                )}
-
+                
                                                 {restaurant.customer_portal_url && (
                                                     <div className="text-sm">
                                                         <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">PORTAL URL</p>

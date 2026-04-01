@@ -247,8 +247,6 @@ export interface RestaurantData {
   portalUrl?: string;
   customerPortalUrl?: string;
   logoUrl?: string;
-  paymentStatus: string;
-  airpayAccountId?: string;
   createdAt: string;
 }
 
