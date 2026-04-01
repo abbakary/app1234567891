@@ -642,298 +642,227 @@ export default function CustomerMenuPage() {
               </motion.button>
 
               <DialogContent className="sm:max-w-md rounded-3xl p-0 overflow-hidden bg-gradient-to-br from-white to-blue-50 dark:from-gray-900 dark:to-blue-950/50 max-h-[90vh] flex flex-col">
-                {checkoutStep === 'cart' && (
-                  <>
-                    <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 text-white relative overflow-hidden sticky top-0 z-20 shadow-sm">
-                      <div className="absolute inset-0 bg-black/20" />
-                      <DialogHeader className="relative z-10 text-white">
-                        <DialogTitle className="text-white text-2xl">Your Order</DialogTitle>
-                        <DialogDescription className="text-white/90">
-                          Review and confirm your delicious choices
-                        </DialogDescription>
-                      </DialogHeader>
-                    </div>
+                <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6 text-white relative overflow-hidden">
+                  <div className="absolute inset-0 bg-black/20" />
+                  <DialogHeader className="relative z-10 text-white">
+                    <DialogTitle className="text-white text-2xl">Your Order</DialogTitle>
+                    <DialogDescription className="text-white/90">
+                      Review and confirm your delicious choices
+                    </DialogDescription>
+                  </DialogHeader>
+                </div>
 
-                    <div className="p-6 space-y-4 flex-1 overflow-y-auto no-scrollbar">
-                      {/* Cart Items */}
-                      <AnimatePresence>
-                        {cart.map((item) => (
-                          <motion.div
-                            key={item.menuItemId}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                            className="flex items-center justify-between p-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl"
-                          >
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {item.menuItem.name}
-                              </p>
-                              {item.specialInstructions && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
-                                  "{item.specialInstructions}"
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                TSH {item.menuItem.price.toLocaleString()} each
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 rounded-xl"
-                                onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
-                              >
-                                <Minus className="w-3 h-3" />
-                              </Button>
-                              <span className="w-8 text-center text-sm font-medium">
-                                {item.quantity}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 rounded-xl"
-                                onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
-                              >
-                                <Plus className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl"
-                                onClick={() => removeFromCart(item.menuItemId)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-
-                      {/* Order Type Selection */}
-                      <div className="space-y-3 pt-4">
-                        <Label className="text-sm font-semibold">How would you like to receive your order?</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { value: 'dine-in', label: 'Dine In', icon: Home, desc: 'Enjoy at restaurant', color: 'from-blue-500 to-cyan-500' },
-                            { value: 'delivery', label: 'Delivery', icon: Truck, desc: 'To your door', color: 'from-purple-500 to-pink-500' },
-                            { value: 'pickup', label: 'Pickup', icon: Package, desc: 'Take away', color: 'from-green-500 to-emerald-500' },
-                          ].map(type => (
-                            <motion.button
-                              key={type.value}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => {
-                                setOrderType(type.value as any);
-                                setTableId('');
-                                setDeliveryAddress('');
-                              }}
-                              className={`p-3 rounded-2xl border-2 transition-all text-center ${orderType === type.value
-                                ? `bg-gradient-to-r ${type.color} text-white border-transparent shadow-lg`
-                                : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm'
-                                }`}
-                            >
-                              <type.icon className={`w-5 h-5 mx-auto mb-1 ${orderType === type.value ? 'text-white' : ''}`} />
-                              <p className="text-sm font-medium">{type.label}</p>
-                              <p className="text-xs opacity-70">{type.desc}</p>
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Order Type Specific Fields */}
-                      <AnimatePresence mode="wait">
-                        {orderType === 'dine-in' && (
-                          <motion.div
-                            key="dinein"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-2 overflow-hidden"
-                          >
-                            <Label htmlFor="table">Select Your Table</Label>
-                            <Select value={tableId || ''} onValueChange={setTableId}>
-                              <SelectTrigger id="table" className={`rounded-xl bg-white/80 dark:bg-gray-900/80 ${!tableId ? 'text-gray-500' : ''}`}>
-                                <SelectValue placeholder="Choose your table" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[999]">
-                                {tables && tables.length > 0 ? (
-                                  tables.map(table => (
-                                    <SelectItem key={table.id} value={String(table.id)}>
-                                      {table.name}
-                                    </SelectItem>
-                                  ))
-                                ) : (
-                                  <div className="px-2 py-1.5 text-sm text-gray-500">No tables available</div>
-                                )}
-                              </SelectContent>
-                            </Select>
-                            {!tableId && (
-                              <p className="text-xs text-red-500 font-medium">Required: Please select a table</p>
-                            )}
-                          </motion.div>
-                        )}
-
-                        {orderType === 'delivery' && (
-                          <motion.div
-                            key="delivery"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-2 overflow-hidden"
-                          >
-                            <Label htmlFor="address">Delivery Address</Label>
-                            <Input
-                              id="address"
-                              placeholder="Enter your delivery address"
-                              value={deliveryAddress}
-                              onChange={(e) => setDeliveryAddress(e.target.value)}
-                              className="rounded-xl bg-white/80 dark:bg-gray-900/80"
-                            />
-                          </motion.div>
-                        )}
-
-                        {(orderType === 'delivery' || orderType === 'pickup') && (
-                          <motion.div
-                            key="phone"
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-2 overflow-hidden"
-                          >
-                            <Label htmlFor="phone">Phone Number</Label>
-                            <Input
-                              id="phone"
-                              type="tel"
-                              placeholder="+1 (555) 000-0000"
-                              value={customerPhone}
-                              onChange={(e) => setCustomerPhone(e.target.value)}
-                              className="rounded-xl bg-white/80 dark:bg-gray-900/80"
-                            />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      {/* Order Notes */}
-                      <div className="space-y-2">
-                        <Label htmlFor="notes">Order Notes (Optional)</Label>
-                        <textarea
-                          id="notes"
-                          placeholder="Any special requests for the restaurant?"
-                          value={orderNotes}
-                          onChange={(e) => setOrderNotes(e.target.value)}
-                          className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          rows={2}
-                        />
-                      </div>
-
-                      {/* Totals */}
-                      <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-800">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                          <span className="font-medium">${cartTotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Tax (10%)</span>
-                          <span className="font-medium">${cartTax.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-base font-bold pt-2">
-                          <span>Total</span>
-                          <span className="text-blue-600 dark:text-blue-400 text-xl">${cartGrandTotal.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-6 pt-0 pb-8 sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-50 dark:border-gray-800/50">
-                      <Button
-                        onClick={handlePlaceOrder}
-                        disabled={isSubmitting}
-                        className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl text-base shadow-lg"
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                  {/* Cart Items */}
+                  <AnimatePresence>
+                    {cart.map((item) => (
+                      <motion.div
+                        key={item.menuItemId}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="flex items-center justify-between p-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl"
                       >
-                        {isSubmitting ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Processing...
-                          </div>
-                        ) : (
-                          <>
-                            Continue to Payment
-                            <ArrowRight className="w-4 h-4 ml-2" />
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </>
-                )}
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {item.menuItem.name}
+                          </p>
+                          {item.specialInstructions && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                              "{item.specialInstructions}"
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            TSH {item.menuItem.price.toLocaleString()} each
+                          </p>
+                        </div>
 
-                {checkoutStep === 'payment' && (
-                  <div className="p-8 pb-12 space-y-8 bg-white dark:bg-gray-900 flex-1 flex flex-col justify-center overflow-y-auto no-scrollbar">
-                    <ClickPesaForm
-                      amount={cartGrandTotal}
-                      customerPhone={customerPhone}
-                      restaurantId={restaurantId}
-                      orderId={completedOrder?.id || ''}
-                      isLoading={isSubmitting}
-                      onSuccess={() => {
-                        handleProcessPayment();
-                      }}
-                      onBack={() => setCheckoutStep('cart')}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 rounded-xl"
+                            onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <span className="w-8 text-center text-sm font-medium">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 rounded-xl"
+                            onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl"
+                            onClick={() => removeFromCart(item.menuItemId)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+
+                  {/* Order Type Selection */}
+                  <div className="space-y-3 pt-4">
+                    <Label className="text-sm font-semibold">How would you like to receive your order?</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'dine-in', label: 'Dine In', icon: Home, desc: 'Enjoy at restaurant', color: 'from-blue-500 to-cyan-500' },
+                        { value: 'delivery', label: 'Delivery', icon: Truck, desc: 'To your door', color: 'from-purple-500 to-pink-500' },
+                        { value: 'pickup', label: 'Pickup', icon: Package, desc: 'Take away', color: 'from-green-500 to-emerald-500' },
+                      ].map(type => (
+                        <motion.button
+                          key={type.value}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setOrderType(type.value as any);
+                            setTableId('');
+                            setDeliveryAddress('');
+                          }}
+                          className={`p-3 rounded-2xl border-2 transition-all text-center ${orderType === type.value
+                            ? `bg-gradient-to-r ${type.color} text-white border-transparent shadow-lg`
+                            : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm'
+                            }`}
+                        >
+                          <type.icon className={`w-5 h-5 mx-auto mb-1 ${orderType === type.value ? 'text-white' : ''}`} />
+                          <p className="text-sm font-medium">{type.label}</p>
+                          <p className="text-xs opacity-70">{type.desc}</p>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Order Type Specific Fields */}
+                  <AnimatePresence mode="wait">
+                    {orderType === 'dine-in' && (
+                      <motion.div
+                        key="dinein"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-2 overflow-hidden"
+                      >
+                        <Label htmlFor="table">Select Your Table</Label>
+                        <Select value={tableId || ''} onValueChange={setTableId}>
+                          <SelectTrigger id="table" className={`rounded-xl bg-white/80 dark:bg-gray-900/80 ${!tableId ? 'text-gray-500' : ''}`}>
+                            <SelectValue placeholder="Choose your table" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[999]">
+                            {tables && tables.length > 0 ? (
+                              tables.map(table => (
+                                <SelectItem key={table.id} value={String(table.id)}>
+                                  {table.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1.5 text-sm text-gray-500">No tables available</div>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {!tableId && (
+                          <p className="text-xs text-red-500 font-medium">Required: Please select a table</p>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {orderType === 'delivery' && (
+                      <motion.div
+                        key="delivery"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-2 overflow-hidden"
+                      >
+                        <Label htmlFor="address">Delivery Address</Label>
+                        <Input
+                          id="address"
+                          placeholder="Enter your delivery address"
+                          value={deliveryAddress}
+                          onChange={(e) => setDeliveryAddress(e.target.value)}
+                          className="rounded-xl bg-white/80 dark:bg-gray-900/80"
+                        />
+                      </motion.div>
+                    )}
+
+                    {(orderType === 'delivery' || orderType === 'pickup') && (
+                      <motion.div
+                        key="phone"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="space-y-2 overflow-hidden"
+                      >
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input
+                          id="phone"
+                          type="tel"
+                          placeholder="+1 (555) 000-0000"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="rounded-xl bg-white/80 dark:bg-gray-900/80"
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Order Notes */}
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Order Notes (Optional)</Label>
+                    <textarea
+                      id="notes"
+                      placeholder="Any special requests for the restaurant?"
+                      value={orderNotes}
+                      onChange={(e) => setOrderNotes(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={2}
                     />
                   </div>
-                )}
 
-                {checkoutStep === 'success' && completedOrder && (
-                  <div className="p-6 pt-10 bg-[#F8F9FA] dark:bg-black overflow-y-auto max-h-[85vh] flex flex-col pb-12">
-                    <div className="text-center space-y-6">
-                      <div className="flex justify-center">
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: 'spring', delay: 0.2 }}
-                          className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center"
-                        >
-                          <CheckCircle2 className="w-10 h-10 text-green-600" />
-                        </motion.div>
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-black text-gray-900 dark:text-white">Order Placed!</h3>
-                        <p className="text-gray-500 font-medium mt-2">Your payment is being processed</p>
-                      </div>
-                      <div className="p-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 space-y-3 text-left">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Order ID</span>
-                          <span className="font-bold text-gray-900 dark:text-white">{completedOrder.id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Amount</span>
-                          <span className="font-bold text-gray-900 dark:text-white">TSH {completedOrder.total?.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Type</span>
-                          <span className="font-bold text-gray-900 dark:text-white capitalize">{completedOrder.order_type}</span>
-                        </div>
-                      </div>
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4">
-                        <p className="text-sm text-blue-900 dark:text-blue-200 font-medium">Check your phone for the payment prompt. Complete the payment to confirm your order.</p>
-                      </div>
+                  {/* Totals */}
+                  <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-800">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                      <span className="font-medium">${cartTotal.toFixed(2)}</span>
                     </div>
-                    <div className="mt-8">
-                      <Button
-                        onClick={() => {
-                          setShowOrderDialog(false);
-                          setTimeout(() => {
-                            window.location.href = '/customer/orders';
-                          }, 500);
-                        }}
-                        className="w-full h-12 bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-bold rounded-xl active:scale-95 transition-all shadow-sm"
-                      >
-                        Track My Order
-                      </Button>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Tax (10%)</span>
+                      <span className="font-medium">${cartTax.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-bold pt-2">
+                      <span>Total</span>
+                      <span className="text-blue-600 dark:text-blue-400 text-xl">${cartGrandTotal.toFixed(2)}</span>
                     </div>
                   </div>
-                )}
+                </div>
+
+                <div className="p-6 pt-0 pb-8 sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-50 dark:border-gray-800/50">
+                  <Button
+                    onClick={handlePlaceOrder}
+                    disabled={isSubmitting}
+                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl text-base shadow-lg"
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Placing Order...
+                      </div>
+                    ) : (
+                      <>
+                        Place Order
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
           </motion.div>
