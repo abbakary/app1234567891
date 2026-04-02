@@ -17,6 +17,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
 import { CreditCard, Banknote, Smartphone, QrCode, Check, Receipt, ArrowLeft } from 'lucide-react';
 import { ClickPesaForm } from '@/components/payment/ClickPesaForm';
+import { api } from '@/lib/api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -46,11 +47,7 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
 
   const fetchLatestOrder = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/orders/${order.id}`, {
-        headers: { 'X-Restaurant-ID': order.restaurantId || '' }
-      });
-      if (!res.ok) throw new Error('Failed to fetch latest order status');
-      const updatedOrder = await res.json();
+      const updatedOrder = await api.get<Order>(`/api/orders/${order.id}`);
       setCompletedOrder(updatedOrder);
       return updatedOrder;
     } catch (err) {
@@ -99,27 +96,14 @@ export function PaymentDialog({ order, open, onOpenChange, onComplete }: Payment
     // After ClickPesa form successfully initiates payment, create payment record with pending status
     try {
       const transactionId = sessionStorage.getItem('pendingTransactionId');
-      const res = await fetch(`${BASE_URL}/api/payments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Restaurant-ID': order.restaurantId || '',
-        },
-        body: JSON.stringify({
-          order_id: order.id,
-          amount: order.total,
-          method: 'mobile',
-          status: 'pending',
-          reference: transactionId,
-        }),
+      const payment = await api.post('/api/payments', {
+        order_id: order.id,
+        amount: order.total,
+        method: 'mobile',
+        status: 'pending',
+        reference: transactionId,
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail || 'Failed to create payment record');
-      }
-
-      const payment = await res.json();
       console.log('Mobile money payment created:', payment);
       sessionStorage.removeItem('pendingTransactionId');
       

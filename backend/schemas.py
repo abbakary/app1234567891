@@ -226,6 +226,8 @@ class PaymentInitiateRequest(BaseModel):
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
     platform_fee_percentage: float = 10.0
+    method: Optional[str] = "airpay"
+    reference: Optional[str] = None
 
 class NotificationBase(BaseModel):
     type: str

@@ -28,10 +28,10 @@ class ClickPesaClient:
     """ClickPesa mobile money payment client with JWT authentication"""
 
     # ClickPesa API endpoints
-    AUTH_ENDPOINT = "/api/auth/oauth/token"
-    PAYMENT_ENDPOINT = "/api/payment/initiate"
-    PAYOUT_ENDPOINT = "/api/payment/payout"
-    TRANSACTION_STATUS_ENDPOINT = "/api/transaction/status"
+    AUTH_ENDPOINT = "/third-parties/generate-token"
+    PAYMENT_ENDPOINT = "/third-parties/payments/initiate-ussd-push-request"
+    PAYOUT_ENDPOINT = "/third-parties/payouts/initiate"
+    TRANSACTION_STATUS_ENDPOINT = "/third-parties/payments/status"
 
     # Rate limiting: 120 requests per minute per IP
     RATE_LIMIT = 120
@@ -68,6 +68,8 @@ class ClickPesaClient:
         if not self.checksum_key:
             logger.warning("CLICKPESA_CHECKSUM not set - webhook verification will fail")
 
+        self.is_mock_mode = False
+
         self.client = httpx.AsyncClient(timeout=30.0, verify=True)  # Always use HTTPS
 
         # JWT token management
@@ -90,6 +92,9 @@ class ClickPesaClient:
         Returns:
             Valid JWT token
         """
+        if self.is_mock_mode:
+            return "mock_jwt_token"
+
         async with self._token_lock:
             # Check if token is still valid (refresh 5 minutes before expiry)
             if self._jwt_token and self._token_expires_at:
@@ -118,32 +123,31 @@ class ClickPesaClient:
             url = f"{self.base_url}{self.AUTH_ENDPOINT}"
 
             # Prepare authentication request
-            payload = {
-                "client_id": self.client_id,
-                "api_key": self.api_key,
-                "grant_type": "client_credentials",
-            }
-
             headers = {
+                "client-id": self.client_id,
+                "api-key": self.api_key,
                 "Content-Type": "application/json",
             }
 
             logger.debug(f"Exchanging credentials at {url}")
 
-            response = await self.client.post(url, json=payload, headers=headers)
+            response = await self.client.post(url, headers=headers)
 
             if response.status_code != 200:
                 logger.error(f"JWT token exchange failed: {response.status_code} - {response.text}")
                 raise Exception(f"Failed to exchange credentials: {response.text}")
 
             data = response.json()
+            
+            # Real ClickPesa API uses 'token', older ones used 'access_token'
+            token = data.get("token") or data.get("access_token")
 
-            if not data.get("access_token"):
+            if not token:
                 logger.error(f"No access_token in response: {data}")
                 raise Exception("No access token in response")
 
             logger.info("JWT token successfully obtained")
-            return data["access_token"]
+            return token
 
         except Exception as e:
             logger.error(f"Error exchanging credentials for JWT: {str(e)}")
@@ -194,8 +198,10 @@ class ClickPesaClient:
         url = f"{self.base_url}{endpoint}"
         jwt_token = await self._get_jwt_token()
 
+        auth_header = jwt_token if str(jwt_token).startswith("Bearer") else f"Bearer {jwt_token}"
+
         headers = {
-            "Authorization": f"Bearer {jwt_token}",
+            "Authorization": auth_header,
             "Content-Type": "application/json",
         }
 
@@ -232,6 +238,10 @@ class ClickPesaClient:
                         self._jwt_token = None  # Force token refresh
                         if attempt < max_retries - 1:
                             continue
+                    
+                    if 400 <= response.status_code < 500:
+                        raise ValueError(f"API error {response.status_code}: {response.text}")
+                        
                     raise Exception(f"API error {response.status_code}: {response.text}")
 
                 return response.json()
@@ -242,6 +252,10 @@ class ClickPesaClient:
                     logger.warning(f"Request timeout on attempt {attempt + 1}. Retrying in {wait_time}s")
                     await asyncio.sleep(wait_time)
                     continue
+                raise
+
+            except ValueError:
+                # Do not retry on client-side errors (4xx) like validation, insufficient funds, etc.
                 raise
 
             except Exception as e:
@@ -278,19 +292,41 @@ class ClickPesaClient:
         Returns:
             Dict with transaction details or error
         """
+        if self.is_mock_mode:
+            logger.info(f"MOCK: Initiating ClickPesa payment: {reference} - Amount: {amount}")
+            return {
+                "success": True,
+                "transaction_id": f"mock_txn_{int(time.time())}",
+                "reference": reference,
+                "status": "initiated",
+                "amount": amount,
+                "network": network,
+            }
+
         try:
             callback_url = callback_url or self.webhook_url
+            
+            # Format phone matching 255...
+            phone = str(customer_phone).replace('+', '')
+            if phone.startswith('0'):
+                phone = '255' + phone[1:]
 
             # Prepare payment request
             payload = {
-                "amount": amount,
-                "customer_phone": customer_phone,
-                "recipient_number": recipient_number,
-                "network": network.lower(),
-                "reference": reference,  # Used for idempotency
-                "callback_url": callback_url,
-                "timestamp": datetime.utcnow().isoformat(),
+                "amount": str(int(amount)),
+                "currency": "TZS",
+                "orderReference": reference,
+                "phoneNumber": phone,
             }
+
+            if self.checksum_key:
+                json_payload = json.dumps(payload, separators=(',', ':'), sort_keys=True)
+                checksum = hmac.new(
+                    self.checksum_key.encode('utf-8'),
+                    json_payload.encode('utf-8'),
+                    hashlib.sha256
+                ).hexdigest()
+                payload["checksum"] = checksum
 
             logger.info(f"Initiating ClickPesa payment: {reference} - Amount: {amount}")
 
@@ -396,6 +432,16 @@ class ClickPesaClient:
         Returns:
             Payout response
         """
+        if self.is_mock_mode:
+            logger.info(f"MOCK: Processing payout: {reference} - Amount: {amount}")
+            return {
+                "success": True,
+                "payout_id": f"mock_payout_{int(time.time())}",
+                "reference": reference,
+                "amount": amount,
+                "status": "initiated",
+            }
+
         try:
             payload = {
                 "recipient_number": recipient_number,
@@ -442,6 +488,16 @@ class ClickPesaClient:
         Returns:
             Transaction status data
         """
+        if self.is_mock_mode:
+            return {
+                "success": True,
+                "reference": reference,
+                "status": "received",
+                "amount": 0,
+                "network": "airtel",
+                "transaction_id": f"mock_txn_{int(time.time())}",
+            }
+
         try:
             logger.debug(f"Checking transaction status: {reference}")
 

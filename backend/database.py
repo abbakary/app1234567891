@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 # SQLALCHEMY_DATABASE_URL = "sqlite:///./restaurant.db"
 # mysql+pymysql://user:password@host:port/db_name
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://zooh:123456%40Br123%40%23@localhost/amazooh_db"
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://zooh:123456%40Br123%40%23@localhost/zooh"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL

@@ -54,7 +54,14 @@ export function ReceiptDialog({ order, paymentMethod = 'cash', open, onOpenChang
             </div>
             <div className="text-right">
               <p className="text-muted-foreground">Date</p>
-              <p>{format(new Date(order.paidAt || order.createdAt), 'MMM dd, yyyy HH:mm')}</p>
+              <p>
+                {(() => {
+                  const dateVal = order.paidAt || order.createdAt;
+                  if (!dateVal) return 'N/A';
+                  const d = new Date(dateVal);
+                  return isNaN(d.getTime()) ? 'N/A' : format(d, 'MMM dd, yyyy HH:mm');
+                })()}
+              </p>
             </div>
           </div>
 

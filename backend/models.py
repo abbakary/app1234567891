@@ -23,6 +23,10 @@ class Restaurant(Base):
     account_holder_name = Column(String(255), nullable=True)  # Account holder name
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    @property
+    def mobile_number(self):
+        return self.clickpesa_mobile_number or ""
+
 class User(Base):
     __tablename__ = "users"
     id = Column(String(36), primary_key=True, index=True)

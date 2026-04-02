@@ -194,8 +194,8 @@ async def initiate_payment(
             detail="Invalid network. Must be: airtel, tigo, or halotel",
         )
 
-    # Create transaction reference
-    reference = f"clickpesa_{uuid.uuid4().hex[:16]}"
+    # Create transaction reference (ClickPesa requires strictly alphanumeric)
+    reference = f"CP{uuid.uuid4().hex[:16].upper()}"
 
     # Calculate admin fee (10% default)
     admin_fee_percentage = 10.0
